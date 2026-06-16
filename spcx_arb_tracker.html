@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>SPCX Арбитраж</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 24px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; display: inline-block; transition: background 0.3s; }
+  .dot.live { background: #22c55e; }
+  .dot.partial { background: #f59e0b; }
+  .upd { font-size: 12px; color: #64748b; font-weight: 400; margin-left: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+  .card { background: #1e2130; border: 1px solid #2d3348; border-radius: 12px; padding: 18px 20px; }
+  .section-title { font-size: 11px; font-weight: 500; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
+  .price-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #2d3348; }
+  .price-row:last-child { border-bottom: none; }
+  .price-label { font-size: 14px; color: #94a3b8; }
+  .price-val { font-size: 16px; font-weight: 500; color: #e2e8f0; }
+  .badge { font-size: 10px; padding: 2px 7px; border-radius: 6px; margin-left: 6px; }
+  .badge-gate { background: #1a3a5c; color: #60a5fa; }
+  .badge-bnb { background: #3a2e0a; color: #fbbf24; }
+  .metric { background: #171923; border: 1px solid #2d3348; border-radius: 10px; padding: 16px; }
+  .metric-label { font-size: 12px; color: #64748b; margin-bottom: 6px; }
+  .metric-value { font-size: 24px; font-weight: 500; color: #e2e8f0; }
+  .pos { color: #22c55e; }
+  .neg { color: #ef4444; }
+  .input-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .input-row label { font-size: 13px; color: #94a3b8; }
+  .input-row input { width: 130px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e2e8f0; font-size: 14px; padding: 5px 10px; outline: none; }
+  .input-row input:focus { border-color: #3b82f6; }
+  .progress-bg { height: 6px; background: #2d3348; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+  .progress-fill { height: 6px; border-radius: 3px; background: #22c55e; transition: width 0.5s; }
+  .converge-row { display: flex; justify-content: space-between; font-size: 13px; color: #94a3b8; margin-top: 12px; margin-bottom: 3px; }
+  .btn { background: #1e2130; border: 1px solid #2d3348; color: #94a3b8; border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+  .btn:hover { background: #2d3348; color: #e2e8f0; }
+  .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  h1 { font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+  .funding-warn { font-size: 12px; color: #f59e0b; margin-top: 8px; }
+  .status-row { display: flex; gap: 20px; font-size: 12px; color: #64748b; margin-bottom: 16px; }
+  .src { display: flex; align-items: center; gap: 5px; }
+  .src-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; }
+  .src-dot.ok { background: #22c55e; }
+</style>
+</head>
+<body>
+
+<div class="header-row">
+  <h1><span class="dot" id="statusDot"></span> SPCX Арбитраж <span class="upd" id="updTime">подключение...</span></h1>
+  <button class="btn" onclick="reconnect()">↻ Переподключить</button>
+</div>
+
+<div class="status-row">
+  <div class="src"><span class="src-dot" id="dotGate"></span> Gate.io</div>
+  <div class="src"><span class="src-dot" id="dotBnb"></span> Binance</div>
+</div>
+
+<div class="grid2">
+  <div class="card">
+    <div class="section-title">Параметры входа</div>
+    <div class="input-row"><label>Количество монет</label><input type="number" id="qty" value="13.84" step="0.01"></div>
+    <div class="input-row"><label>Спот вход Gate ($)</label><input type="number" id="entrySpot" value="166.82" step="0.01"></div>
+    <div class="input-row"><label>Шорт вход Binance ($)</label><input type="number" id="entryShort" value="193.14" step="0.01"></div>
+    <div class="input-row"><label>Фандинг 8ч (%)</label><input type="number" id="funding" value="0.04" step="0.001"></div>
+    <div class="input-row"><label>Фандингов заплачено</label><input type="number" id="fundingPaid" value="0" step="1"></div>
+    <div class="funding-warn" id="fundingWarn"></div>
+  </div>
+
+  <div class="card">
+    <div class="section-title">Цены сейчас</div>
+    <div class="price-row">
+      <span class="price-label">Gate.io спот <span class="badge badge-gate">SPOT</span></span>
+      <span class="price-val" id="priceGate">—</span>
+    </div>
+    <div class="price-row">
+      <span class="price-label">Binance фьюч <span class="badge badge-bnb">PERP</span></span>
+      <span class="price-val" id="priceBnb">—</span>
+    </div>
+    <div class="price-row">
+      <span class="price-label">Спред сейчас</span>
+      <span class="price-val" id="spreadNow">—</span>
+    </div>
+    <div class="price-row">
+      <span class="price-label">Спред при входе</span>
+      <span class="price-val" id="spreadEntry">—</span>
+    </div>
+    <div class="converge-row">
+      <span>Схождение спреда</span>
+      <span id="convergePct">—</span>
+    </div>
+    <div class="progress-bg">
+      <div class="progress-fill" id="progressBar" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+
+<div class="grid4">
+  <div class="metric">
+    <div class="metric-label">P&L спот (Gate)</div>
+    <div class="metric-value" id="pnlSpot">—</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">P&L шорт (Binance)</div>
+    <div class="metric-value" id="pnlShort">—</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Фандинг уплачен</div>
+    <div class="metric-value neg" id="pnlFunding">—</div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">Итого P&L</div>
+    <div class="metric-value" id="pnlTotal">—</div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let gatePrice = null;
+let bnbPrice = null;
+let wsGate = null;
+let wsBnb = null;
+
+function getInputs() {
+  return {
+    qty: parseFloat($('qty').value) || 13.84,
+    entrySpot: parseFloat($('entrySpot').value) || 166.82,
+    entryShort: parseFloat($('entryShort').value) || 193.14,
+    funding: parseFloat($('funding').value) || 0.04,
+    fundingPaid: parseInt($('fundingPaid').value) || 0,
+  };
+}
+
+function setMetric(id, val) {
+  const el = $(id);
+  el.textContent = (val >= 0 ? '+' : '') + '$' + val.toFixed(2);
+  el.className = 'metric-value ' + (val > 0 ? 'pos' : val < 0 ? 'neg' : '');
+}
+
+function render() {
+  if (!gatePrice || !bnbPrice) return;
+  const { qty, entrySpot, entryShort, funding, fundingPaid } = getInputs();
+
+  const pnlSpot = (gatePrice - entrySpot) * qty;
+  const pnlShort = (entryShort - bnbPrice) * qty;
+  const fundingPerRound = bnbPrice * qty * (funding / 100);
+  const totalFunding = fundingPerRound * fundingPaid;
+  const total = pnlSpot + pnlShort - totalFunding;
+
+  const spreadNow = bnbPrice - gatePrice;
+  const spreadNowPct = spreadNow / gatePrice * 100;
+  const spreadEntry = entryShort - entrySpot;
+  const spreadEntryPct = spreadEntry / entrySpot * 100;
+  const converge = Math.max(0, Math.min(100, (spreadEntryPct - spreadNowPct) / spreadEntryPct * 100));
+
+  $('priceGate').textContent = '$' + gatePrice.toFixed(2);
+  $('priceBnb').textContent = '$' + bnbPrice.toFixed(2);
+  $('spreadNow').textContent = '$' + spreadNow.toFixed(2) + ' (' + spreadNowPct.toFixed(2) + '%)';
+  $('spreadEntry').textContent = '$' + spreadEntry.toFixed(2) + ' (' + spreadEntryPct.toFixed(2) + '%)';
+  $('convergePct').textContent = converge.toFixed(1) + '%';
+  $('progressBar').style.width = Math.min(converge, 100).toFixed(1) + '%';
+
+  setMetric('pnlSpot', pnlSpot);
+  setMetric('pnlShort', pnlShort);
+  $('pnlFunding').textContent = '-$' + totalFunding.toFixed(2);
+  setMetric('pnlTotal', total);
+
+  const daysHeld = fundingPaid / 3;
+  $('fundingWarn').textContent = daysHeld > 0
+    ? '⚠ Держишь ' + daysHeld.toFixed(1) + ' дн. Фандинг съедает $' + (fundingPerRound * 3).toFixed(2) + '/день'
+    : '';
+
+  $('updTime').textContent = 'обновлено ' + new Date().toLocaleTimeString('ru-RU');
+  $('statusDot').className = 'dot live';
+}
+
+function connectGate() {
+  if (wsGate) wsGate.close();
+  wsGate = new WebSocket('wss://api.gateio.ws/ws/v4/');
+  wsGate.onopen = () => {
+    wsGate.send(JSON.stringify({
+      time: Math.floor(Date.now()/1000),
+      channel: 'spot.tickers',
+      event: 'subscribe',
+      payload: ['SPCX_USDT']
+    }));
+  };
+  wsGate.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.result && d.result.last) {
+        gatePrice = parseFloat(d.result.last);
+        $('dotGate').className = 'src-dot ok';
+        render();
+      }
+    } catch(err) {}
+  };
+  wsGate.onerror = () => { $('dotGate').className = 'src-dot'; };
+  wsGate.onclose = () => { $('dotGate').className = 'src-dot'; setTimeout(connectGate, 3000); };
+}
+
+function connectBnb() {
+  if (wsBnb) wsBnb.close();
+  wsBnb = new WebSocket('wss://fstream.binance.com/ws/spcxusdt@markPrice@1s');
+  wsBnb.onmessage = e => {
+    try {
+      const d = JSON.parse(e.data);
+      if (d.p) {
+        bnbPrice = parseFloat(d.p);
+        $('dotBnb').className = 'src-dot ok';
+        render();
+      }
+    } catch(err) {}
+  };
+  wsBnb.onerror = () => { $('dotBnb').className = 'src-dot'; };
+  wsBnb.onclose = () => { $('dotBnb').className = 'src-dot'; setTimeout(connectBnb, 3000); };
+}
+
+function reconnect() {
+  $('statusDot').className = 'dot';
+  $('updTime').textContent = 'переподключение...';
+  connectGate();
+  connectBnb();
+}
+
+['qty','entrySpot','entryShort','funding','fundingPaid'].forEach(id => {
+  $(id).addEventListener('input', render);
+});
+
+connectGate();
+connectBnb();
+</script>
+</body>
+</html>
