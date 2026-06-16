@@ -25,22 +25,36 @@
   .metric-value { font-size: 24px; font-weight: 500; color: #e2e8f0; }
   .pos { color: #22c55e; }
   .neg { color: #ef4444; }
-  .input-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+  .input-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
   .input-row label { font-size: 13px; color: #94a3b8; }
-  .input-row input { width: 130px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e2e8f0; font-size: 14px; padding: 5px 10px; outline: none; }
+  .input-row input { width: 140px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e2e8f0; font-size: 14px; padding: 6px 10px; outline: none; }
   .input-row input:focus { border-color: #3b82f6; }
   .progress-bg { height: 6px; background: #2d3348; border-radius: 3px; overflow: hidden; margin-top: 6px; }
   .progress-fill { height: 6px; border-radius: 3px; background: #22c55e; transition: width 0.5s; }
   .converge-row { display: flex; justify-content: space-between; font-size: 13px; color: #94a3b8; margin-top: 12px; margin-bottom: 3px; }
   .btn { background: #1e2130; border: 1px solid #2d3348; color: #94a3b8; border-radius: 8px; padding: 6px 14px; font-size: 13px; cursor: pointer; }
   .btn:hover { background: #2d3348; color: #e2e8f0; }
+  .btn-calc { background: #1d4ed8; border: none; color: #fff; border-radius: 8px; padding: 10px 0; font-size: 15px; cursor: pointer; width: 100%; margin-top: 4px; }
+  .btn-calc:hover { background: #2563eb; }
   .header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
   h1 { font-size: 18px; font-weight: 500; display: flex; align-items: center; gap: 10px; }
+  h2 { font-size: 15px; font-weight: 500; color: #94a3b8; margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1px solid #2d3348; }
   .funding-warn { font-size: 12px; color: #f59e0b; margin-top: 8px; }
   .status-row { display: flex; gap: 20px; font-size: 12px; color: #64748b; margin-bottom: 16px; }
   .src { display: flex; align-items: center; gap: 5px; }
   .src-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; transition: background 0.3s; }
   .src-dot.ok { background: #22c55e; }
+  .divider { border: none; border-top: 1px solid #2d3348; margin: 28px 0; }
+  .result-box { border-radius: 12px; padding: 24px; margin-top: 16px; text-align: center; }
+  .result-box.pos-bg { background: #0f2918; border: 1px solid #166534; }
+  .result-box.neg-bg { background: #2a1a1a; border: 1px solid #7f1d1d; }
+  .result-label { font-size: 13px; color: #64748b; margin-bottom: 8px; }
+  .result-value { font-size: 40px; font-weight: 600; }
+  .hint { font-size: 12px; color: #475569; margin-top: 6px; }
+  .breakdown { display: flex; justify-content: center; gap: 32px; margin-top: 14px; }
+  .breakdown-item { text-align: center; }
+  .breakdown-label { font-size: 11px; color: #64748b; margin-bottom: 3px; }
+  .breakdown-val { font-size: 16px; font-weight: 500; }
 </style>
 </head>
 <body>
@@ -96,11 +110,11 @@
 
 <div class="grid4">
   <div class="metric">
-    <div class="metric-label">P&L спот (Gate)</div>
+    <div class="metric-label">P&L спот</div>
     <div class="metric-value" id="pnlSpot">—</div>
   </div>
   <div class="metric">
-    <div class="metric-label">P&L шорт (Binance)</div>
+    <div class="metric-label">P&L шорт</div>
     <div class="metric-value" id="pnlShort">—</div>
   </div>
   <div class="metric">
@@ -110,6 +124,39 @@
   <div class="metric">
     <div class="metric-label">Итого P&L</div>
     <div class="metric-value" id="pnlTotal">—</div>
+  </div>
+</div>
+
+<hr class="divider">
+
+<h2>🧮 Калькулятор закрытия</h2>
+
+<div class="grid2">
+  <div class="card">
+    <div class="section-title">Что получил при закрытии</div>
+    <div class="input-row">
+      <label>Спот продан на сумму ($)</label>
+      <input type="number" id="closeSpotAmt" placeholder="напр. 2650" step="0.01">
+    </div>
+    <div class="input-row">
+      <label>P&L фьюча с биржи ($)</label>
+      <input type="number" id="closeFutPnl" placeholder="напр. -240 или +180" step="0.01">
+    </div>
+    <div class="input-row">
+      <label>Фандинг заплачено итого ($)</label>
+      <input type="number" id="closeFunding" placeholder="напр. 12.5" step="0.01">
+    </div>
+    <button class="btn-calc" onclick="calcClose()">Посчитать итог</button>
+  </div>
+
+  <div id="closeResult" style="display:none" class="card">
+    <div class="section-title">Результат</div>
+    <div class="result-box" id="resultBox">
+      <div class="result-label">ЧИСТЫЙ P&L</div>
+      <div class="result-value" id="resNet">—</div>
+      <div class="breakdown" id="resBreakdown"></div>
+      <div class="hint" id="resHint"></div>
+    </div>
   </div>
 </div>
 
@@ -174,6 +221,40 @@ function render() {
   $('statusDot').className = 'dot live';
 }
 
+function calcClose() {
+  const entrySpot = parseFloat($('entrySpot').value) || 166.82;
+  const qty = parseFloat($('qty').value) || 13.84;
+  const closeSpotAmt = parseFloat($('closeSpotAmt').value);
+  const closeFutPnl = parseFloat($('closeFutPnl').value);
+  const closeFunding = parseFloat($('closeFunding').value) || 0;
+
+  if (isNaN(closeSpotAmt) || isNaN(closeFutPnl)) {
+    alert('Введи сумму продажи спота и P&L фьюча!');
+    return;
+  }
+
+  // Вложено в спот при входе
+  const invested = entrySpot * qty;
+  // Прибыль со спота = получено - вложено
+  const spotProfit = closeSpotAmt - invested;
+  // Итог
+  const net = spotProfit + closeFutPnl - closeFunding;
+
+  const box = $('resultBox');
+  box.className = 'result-box ' + (net >= 0 ? 'pos-bg' : 'neg-bg');
+
+  $('resNet').textContent = (net >= 0 ? '+' : '') + '$' + net.toFixed(2);
+  $('resNet').className = 'result-value ' + (net >= 0 ? 'pos' : 'neg');
+
+  $('resBreakdown').innerHTML =
+    '<div class="breakdown-item"><div class="breakdown-label">Спот P&L</div><div class="breakdown-val ' + (spotProfit >= 0 ? 'pos' : 'neg') + '">' + (spotProfit >= 0 ? '+' : '') + '$' + spotProfit.toFixed(2) + '</div></div>' +
+    '<div class="breakdown-item"><div class="breakdown-label">Фьюч P&L</div><div class="breakdown-val ' + (closeFutPnl >= 0 ? 'pos' : 'neg') + '">' + (closeFutPnl >= 0 ? '+' : '') + '$' + closeFutPnl.toFixed(2) + '</div></div>' +
+    '<div class="breakdown-item"><div class="breakdown-label">Фандинг</div><div class="breakdown-val neg">-$' + closeFunding.toFixed(2) + '</div></div>';
+
+  $('resHint').textContent = 'Вложено в спот: $' + invested.toFixed(2);
+  $('closeResult').style.display = 'block';
+}
+
 function connectSpot() {
   if (wsSpot) wsSpot.close();
   wsSpot = new WebSocket('wss://api.gateio.ws/ws/v4/');
@@ -215,11 +296,7 @@ function connectPerp() {
       const d = JSON.parse(e.data);
       if (d.result && Array.isArray(d.result)) {
         const t = d.result.find(x => x.contract === 'SPCX_USDT');
-        if (t && t.last) {
-          perpPrice = parseFloat(t.last);
-          $('dotPerp').className = 'src-dot ok';
-          render();
-        }
+        if (t && t.last) { perpPrice = parseFloat(t.last); $('dotPerp').className = 'src-dot ok'; render(); }
       } else if (d.result && d.result.last) {
         perpPrice = parseFloat(d.result.last);
         $('dotPerp').className = 'src-dot ok';
