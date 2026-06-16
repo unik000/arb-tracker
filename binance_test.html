@@ -14,29 +14,23 @@
   .status.ok { background: #0f2918; color: #22c55e; }
   .status.err { background: #2a1a1a; color: #ef4444; }
   .status.wait { background: #1e2130; color: #64748b; }
-  .log { font-size: 12px; color: #475569; margin-top: 16px; line-height: 1.8; }
+  .log { font-size: 12px; color: #475569; margin-top: 16px; line-height: 1.8; font-family: monospace; }
 </style>
 </head>
 <body>
 
-<h1>Тест подключения к Binance</h1>
+<h1>Тест Binance WebSocket</h1>
 
 <div class="block">
-  <div class="label">SPCX/USDT — Binance Futures (mark price)</div>
+  <div class="label">Binance Futures — SPCXUSDT (фьюч)</div>
   <div class="price" id="price1">—</div>
   <div class="status wait" id="status1">⏳ Подключение...</div>
 </div>
 
 <div class="block">
-  <div class="label">SPCX/USDT — Binance Futures (ticker)</div>
+  <div class="label">Binance Spot — SPCXBUSDT (спот)</div>
   <div class="price" id="price2">—</div>
   <div class="status wait" id="status2">⏳ Подключение...</div>
-</div>
-
-<div class="block">
-  <div class="label">SPCX/USDT — Binance Spot</div>
-  <div class="price" id="price3">—</div>
-  <div class="status wait" id="status3">⏳ Подключение...</div>
 </div>
 
 <div class="log" id="log"></div>
@@ -48,69 +42,44 @@ function log(msg) {
   el.innerHTML += `[${time}] ${msg}<br>`;
 }
 
-// Тест 1 — markPrice
 function test1() {
-  log('Тест 1: подключаюсь к fstream.binance.com markPrice...');
-  try {
-    const ws = new WebSocket('wss://fstream.binance.com/ws/spcxusdt@markPrice@1s');
-    ws.onopen = () => log('Тест 1: соединение открыто');
-    ws.onmessage = e => {
-      const d = JSON.parse(e.data);
-      if (d.p) {
-        document.getElementById('price1').textContent = '$' + parseFloat(d.p).toFixed(2);
-        document.getElementById('status1').textContent = '✅ Работает!';
-        document.getElementById('status1').className = 'status ok';
-        log('Тест 1: получена цена ' + d.p);
-      }
-    };
-    ws.onerror = e => { document.getElementById('status1').textContent = '❌ Ошибка подключения'; document.getElementById('status1').className = 'status err'; log('Тест 1: ошибка'); };
-    ws.onclose = () => log('Тест 1: соединение закрыто');
-  } catch(e) { log('Тест 1: исключение — ' + e.message); }
+  log('Фьюч SPCXUSDT — подключаюсь...');
+  const ws = new WebSocket('wss://fstream.binance.com/ws/spcxusdt@markPrice@1s');
+  ws.onopen = () => log('Фьюч: соединение открыто, жду данные...');
+  ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+    log('Фьюч: данные → ' + JSON.stringify(d).substring(0, 120));
+    const price = d.p || d.c;
+    if (price) {
+      document.getElementById('price1').textContent = '$' + parseFloat(price).toFixed(2);
+      document.getElementById('status1').textContent = '✅ Работает!';
+      document.getElementById('status1').className = 'status ok';
+    }
+  };
+  ws.onerror = () => { document.getElementById('status1').className = 'status err'; document.getElementById('status1').textContent = '❌ Ошибка'; log('Фьюч: ошибка WebSocket'); };
+  ws.onclose = e => log('Фьюч: закрыто, код=' + e.code + ' причина=' + (e.reason || 'нет'));
 }
 
-// Тест 2 — ticker
 function test2() {
-  log('Тест 2: подключаюсь к fstream.binance.com ticker...');
-  try {
-    const ws = new WebSocket('wss://fstream.binance.com/ws/spcxusdt@ticker');
-    ws.onopen = () => log('Тест 2: соединение открыто');
-    ws.onmessage = e => {
-      const d = JSON.parse(e.data);
-      if (d.c) {
-        document.getElementById('price2').textContent = '$' + parseFloat(d.c).toFixed(2);
-        document.getElementById('status2').textContent = '✅ Работает!';
-        document.getElementById('status2').className = 'status ok';
-        log('Тест 2: получена цена ' + d.c);
-      }
-    };
-    ws.onerror = e => { document.getElementById('status2').textContent = '❌ Ошибка подключения'; document.getElementById('status2').className = 'status err'; log('Тест 2: ошибка'); };
-    ws.onclose = () => log('Тест 2: соединение закрыто');
-  } catch(e) { log('Тест 2: исключение — ' + e.message); }
-}
-
-// Тест 3 — spot
-function test3() {
-  log('Тест 3: подключаюсь к stream.binance.com спот...');
-  try {
-    const ws = new WebSocket('wss://stream.binance.com:9443/ws/spcxusdt@ticker');
-    ws.onopen = () => log('Тест 3: соединение открыто');
-    ws.onmessage = e => {
-      const d = JSON.parse(e.data);
-      if (d.c) {
-        document.getElementById('price3').textContent = '$' + parseFloat(d.c).toFixed(2);
-        document.getElementById('status3').textContent = '✅ Работает!';
-        document.getElementById('status3').className = 'status ok';
-        log('Тест 3: получена цена ' + d.c);
-      }
-    };
-    ws.onerror = e => { document.getElementById('status3').textContent = '❌ Ошибка подключения'; document.getElementById('status3').className = 'status err'; log('Тест 3: ошибка'); };
-    ws.onclose = () => log('Тест 3: соединение закрыто');
-  } catch(e) { log('Тест 3: исключение — ' + e.message); }
+  log('Спот SPCXBUSDT — подключаюсь...');
+  const ws = new WebSocket('wss://stream.binance.com:9443/ws/spcxbusdt@ticker');
+  ws.onopen = () => log('Спот: соединение открыто, жду данные...');
+  ws.onmessage = e => {
+    const d = JSON.parse(e.data);
+    log('Спот: данные → ' + JSON.stringify(d).substring(0, 120));
+    const price = d.c;
+    if (price) {
+      document.getElementById('price2').textContent = '$' + parseFloat(price).toFixed(2);
+      document.getElementById('status2').textContent = '✅ Работает!';
+      document.getElementById('status2').className = 'status ok';
+    }
+  };
+  ws.onerror = () => { document.getElementById('status2').className = 'status err'; document.getElementById('status2').textContent = '❌ Ошибка'; log('Спот: ошибка WebSocket'); };
+  ws.onclose = e => log('Спот: закрыто, код=' + e.code + ' причина=' + (e.reason || 'нет'));
 }
 
 setTimeout(test1, 500);
 setTimeout(test2, 1000);
-setTimeout(test3, 1500);
 </script>
 </body>
 </html>
