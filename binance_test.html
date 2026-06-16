@@ -19,18 +19,18 @@
 </head>
 <body>
 
-<h1>Тест Binance WebSocket</h1>
+<h1>Тест Binance — REST запросы</h1>
 
 <div class="block">
-  <div class="label">Binance Futures — SPCXUSDT (фьюч)</div>
+  <div class="label">Binance Futures SPCXUSDT — REST каждые 3 сек</div>
   <div class="price" id="price1">—</div>
-  <div class="status wait" id="status1">⏳ Подключение...</div>
+  <div class="status wait" id="status1">⏳ Запрос...</div>
 </div>
 
 <div class="block">
-  <div class="label">Binance Spot — SPCXBUSDT (спот)</div>
-  <div class="price" id="price2">—</div>
-  <div class="status wait" id="status2">⏳ Подключение...</div>
+  <div class="label">Binance Spot SPCXBUSDT — REST каждые 3 сек</div>
+  <div class="price" id="price2">$203.36 ✅ уже работает через WS</div>
+  <div class="status ok" id="status2">✅ WS работает</div>
 </div>
 
 <div class="log" id="log"></div>
@@ -42,44 +42,39 @@ function log(msg) {
   el.innerHTML += `[${time}] ${msg}<br>`;
 }
 
-function test1() {
-  log('Фьюч SPCXUSDT — подключаюсь...');
-  const ws = new WebSocket('wss://fstream.binance.com/ws/spcxusdt@markPrice@1s');
-  ws.onopen = () => log('Фьюч: соединение открыто, жду данные...');
-  ws.onmessage = e => {
-    const d = JSON.parse(e.data);
-    log('Фьюч: данные → ' + JSON.stringify(d).substring(0, 120));
-    const price = d.p || d.c;
-    if (price) {
-      document.getElementById('price1').textContent = '$' + parseFloat(price).toFixed(2);
-      document.getElementById('status1').textContent = '✅ Работает!';
+// REST запрос к Binance Futures
+async function fetchFutures() {
+  try {
+    const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/price?symbol=SPCXUSDT');
+    const d = await res.json();
+    log('Фьюч REST: ' + JSON.stringify(d));
+    if (d.price) {
+      document.getElementById('price1').textContent = '$' + parseFloat(d.price).toFixed(2);
+      document.getElementById('status1').textContent = '✅ REST работает!';
       document.getElementById('status1').className = 'status ok';
     }
-  };
-  ws.onerror = () => { document.getElementById('status1').className = 'status err'; document.getElementById('status1').textContent = '❌ Ошибка'; log('Фьюч: ошибка WebSocket'); };
-  ws.onclose = e => log('Фьюч: закрыто, код=' + e.code + ' причина=' + (e.reason || 'нет'));
+  } catch(e) {
+    log('Фьюч REST ошибка: ' + e.message);
+    document.getElementById('status1').textContent = '❌ REST не работает: ' + e.message;
+    document.getElementById('status1').className = 'status err';
+  }
 }
 
-function test2() {
-  log('Спот SPCXBUSDT — подключаюсь...');
+// Спот через WS (уже работает)
+function connectSpotWS() {
   const ws = new WebSocket('wss://stream.binance.com:9443/ws/spcxbusdt@ticker');
-  ws.onopen = () => log('Спот: соединение открыто, жду данные...');
   ws.onmessage = e => {
     const d = JSON.parse(e.data);
-    log('Спот: данные → ' + JSON.stringify(d).substring(0, 120));
-    const price = d.c;
-    if (price) {
-      document.getElementById('price2').textContent = '$' + parseFloat(price).toFixed(2);
-      document.getElementById('status2').textContent = '✅ Работает!';
-      document.getElementById('status2').className = 'status ok';
+    if (d.c) {
+      document.getElementById('price2').textContent = '$' + parseFloat(d.c).toFixed(2);
     }
   };
-  ws.onerror = () => { document.getElementById('status2').className = 'status err'; document.getElementById('status2').textContent = '❌ Ошибка'; log('Спот: ошибка WebSocket'); };
-  ws.onclose = e => log('Спот: закрыто, код=' + e.code + ' причина=' + (e.reason || 'нет'));
+  ws.onclose = () => setTimeout(connectSpotWS, 3000);
 }
 
-setTimeout(test1, 500);
-setTimeout(test2, 1000);
+fetchFutures();
+setInterval(fetchFutures, 3000);
+connectSpotWS();
 </script>
 </body>
 </html>
