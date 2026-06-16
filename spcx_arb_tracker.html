@@ -202,12 +202,12 @@ function connectGate() {
 
 function connectBnb() {
   if (wsBnb) wsBnb.close();
-  wsBnb = new WebSocket('wss://fstream.binance.com/ws/spcxusdt@markPrice@1s');
+  wsBnb = new WebSocket('wss://fstream.binance.com/ws/spcxusdt@ticker');
   wsBnb.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
-      if (d.p) {
-        bnbPrice = parseFloat(d.p);
+      if (d.c) {
+        bnbPrice = parseFloat(d.c);
         $('dotBnb').className = 'src-dot ok';
         render();
       }
