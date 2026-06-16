@@ -8,7 +8,6 @@
   body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; min-height: 100vh; padding: 24px; }
   .dot { width: 8px; height: 8px; border-radius: 50%; background: #ef4444; display: inline-block; transition: background 0.3s; }
   .dot.live { background: #22c55e; }
-  .dot.partial { background: #f59e0b; }
   .upd { font-size: 12px; color: #64748b; font-weight: 400; margin-left: 4px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
   .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
@@ -19,8 +18,8 @@
   .price-label { font-size: 14px; color: #94a3b8; }
   .price-val { font-size: 16px; font-weight: 500; color: #e2e8f0; }
   .badge { font-size: 10px; padding: 2px 7px; border-radius: 6px; margin-left: 6px; }
-  .badge-gate { background: #1a3a5c; color: #60a5fa; }
-  .badge-bnb { background: #3a2e0a; color: #fbbf24; }
+  .badge-spot { background: #1a3a5c; color: #60a5fa; }
+  .badge-perp { background: #3a2e0a; color: #fbbf24; }
   .metric { background: #171923; border: 1px solid #2d3348; border-radius: 10px; padding: 16px; }
   .metric-label { font-size: 12px; color: #64748b; margin-bottom: 6px; }
   .metric-value { font-size: 24px; font-weight: 500; color: #e2e8f0; }
@@ -40,7 +39,7 @@
   .funding-warn { font-size: 12px; color: #f59e0b; margin-top: 8px; }
   .status-row { display: flex; gap: 20px; font-size: 12px; color: #64748b; margin-bottom: 16px; }
   .src { display: flex; align-items: center; gap: 5px; }
-  .src-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; }
+  .src-dot { width: 6px; height: 6px; border-radius: 50%; background: #ef4444; transition: background 0.3s; }
   .src-dot.ok { background: #22c55e; }
 </style>
 </head>
@@ -52,8 +51,8 @@
 </div>
 
 <div class="status-row">
-  <div class="src"><span class="src-dot" id="dotGate"></span> Gate.io</div>
-  <div class="src"><span class="src-dot" id="dotBnb"></span> Binance</div>
+  <div class="src"><span class="src-dot" id="dotSpot"></span> Gate спот</div>
+  <div class="src"><span class="src-dot" id="dotPerp"></span> Gate фьюч</div>
 </div>
 
 <div class="grid2">
@@ -70,12 +69,12 @@
   <div class="card">
     <div class="section-title">Цены сейчас</div>
     <div class="price-row">
-      <span class="price-label">Gate.io спот <span class="badge badge-gate">SPOT</span></span>
-      <span class="price-val" id="priceGate">—</span>
+      <span class="price-label">Gate спот <span class="badge badge-spot">SPOT</span></span>
+      <span class="price-val" id="priceSpot">—</span>
     </div>
     <div class="price-row">
-      <span class="price-label">Binance фьюч <span class="badge badge-bnb">PERP</span></span>
-      <span class="price-val" id="priceBnb">—</span>
+      <span class="price-label">Gate фьюч <span class="badge badge-perp">PERP</span></span>
+      <span class="price-val" id="pricePerp">—</span>
     </div>
     <div class="price-row">
       <span class="price-label">Спред сейчас</span>
@@ -117,10 +116,10 @@
 <script>
 const $ = id => document.getElementById(id);
 
-let gatePrice = null;
-let bnbPrice = null;
-let wsGate = null;
-let wsBnb = null;
+let spotPrice = null;
+let perpPrice = null;
+let wsSpot = null;
+let wsPerp = null;
 
 function getInputs() {
   return {
@@ -139,23 +138,23 @@ function setMetric(id, val) {
 }
 
 function render() {
-  if (!gatePrice || !bnbPrice) return;
+  if (!spotPrice || !perpPrice) return;
   const { qty, entrySpot, entryShort, funding, fundingPaid } = getInputs();
 
-  const pnlSpot = (gatePrice - entrySpot) * qty;
-  const pnlShort = (entryShort - bnbPrice) * qty;
-  const fundingPerRound = bnbPrice * qty * (funding / 100);
+  const pnlSpot = (spotPrice - entrySpot) * qty;
+  const pnlShort = (entryShort - perpPrice) * qty;
+  const fundingPerRound = perpPrice * qty * (funding / 100);
   const totalFunding = fundingPerRound * fundingPaid;
   const total = pnlSpot + pnlShort - totalFunding;
 
-  const spreadNow = bnbPrice - gatePrice;
-  const spreadNowPct = spreadNow / gatePrice * 100;
+  const spreadNow = perpPrice - spotPrice;
+  const spreadNowPct = spreadNow / spotPrice * 100;
   const spreadEntry = entryShort - entrySpot;
   const spreadEntryPct = spreadEntry / entrySpot * 100;
   const converge = Math.max(0, Math.min(100, (spreadEntryPct - spreadNowPct) / spreadEntryPct * 100));
 
-  $('priceGate').textContent = '$' + gatePrice.toFixed(2);
-  $('priceBnb').textContent = '$' + bnbPrice.toFixed(2);
+  $('priceSpot').textContent = '$' + spotPrice.toFixed(2);
+  $('pricePerp').textContent = '$' + perpPrice.toFixed(2);
   $('spreadNow').textContent = '$' + spreadNow.toFixed(2) + ' (' + spreadNowPct.toFixed(2) + '%)';
   $('spreadEntry').textContent = '$' + spreadEntry.toFixed(2) + ' (' + spreadEntryPct.toFixed(2) + '%)';
   $('convergePct').textContent = converge.toFixed(1) + '%';
@@ -175,61 +174,76 @@ function render() {
   $('statusDot').className = 'dot live';
 }
 
-function connectGate() {
-  if (wsGate) wsGate.close();
-  wsGate = new WebSocket('wss://api.gateio.ws/ws/v4/');
-  wsGate.onopen = () => {
-    wsGate.send(JSON.stringify({
+function connectSpot() {
+  if (wsSpot) wsSpot.close();
+  wsSpot = new WebSocket('wss://api.gateio.ws/ws/v4/');
+  wsSpot.onopen = () => {
+    wsSpot.send(JSON.stringify({
       time: Math.floor(Date.now()/1000),
       channel: 'spot.tickers',
       event: 'subscribe',
       payload: ['SPCX_USDT']
     }));
   };
-  wsGate.onmessage = e => {
+  wsSpot.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
       if (d.result && d.result.last) {
-        gatePrice = parseFloat(d.result.last);
-        $('dotGate').className = 'src-dot ok';
+        spotPrice = parseFloat(d.result.last);
+        $('dotSpot').className = 'src-dot ok';
         render();
       }
     } catch(err) {}
   };
-  wsGate.onerror = () => { $('dotGate').className = 'src-dot'; };
-  wsGate.onclose = () => { $('dotGate').className = 'src-dot'; setTimeout(connectGate, 3000); };
+  wsSpot.onerror = () => { $('dotSpot').className = 'src-dot'; };
+  wsSpot.onclose = () => { $('dotSpot').className = 'src-dot'; setTimeout(connectSpot, 3000); };
 }
 
-function connectBnb() {
-  if (wsBnb) wsBnb.close();
-  wsBnb = new WebSocket('wss://fstream.binance.com/ws/spcxusdt@ticker');
-  wsBnb.onmessage = e => {
+function connectPerp() {
+  if (wsPerp) wsPerp.close();
+  wsPerp = new WebSocket('wss://fx-ws.gateio.ws/v4/ws/usdt');
+  wsPerp.onopen = () => {
+    wsPerp.send(JSON.stringify({
+      time: Math.floor(Date.now()/1000),
+      channel: 'futures.tickers',
+      event: 'subscribe',
+      payload: ['SPCX_USDT']
+    }));
+  };
+  wsPerp.onmessage = e => {
     try {
       const d = JSON.parse(e.data);
-      if (d.c) {
-        bnbPrice = parseFloat(d.c);
-        $('dotBnb').className = 'src-dot ok';
+      if (d.result && Array.isArray(d.result)) {
+        const t = d.result.find(x => x.contract === 'SPCX_USDT');
+        if (t && t.last) {
+          perpPrice = parseFloat(t.last);
+          $('dotPerp').className = 'src-dot ok';
+          render();
+        }
+      } else if (d.result && d.result.last) {
+        perpPrice = parseFloat(d.result.last);
+        $('dotPerp').className = 'src-dot ok';
         render();
       }
     } catch(err) {}
   };
-  wsBnb.onerror = () => { $('dotBnb').className = 'src-dot'; };
-  wsBnb.onclose = () => { $('dotBnb').className = 'src-dot'; setTimeout(connectBnb, 3000); };
+  wsPerp.onerror = () => { $('dotPerp').className = 'src-dot'; };
+  wsPerp.onclose = () => { $('dotPerp').className = 'src-dot'; setTimeout(connectPerp, 3000); };
 }
 
 function reconnect() {
   $('statusDot').className = 'dot';
   $('updTime').textContent = 'переподключение...';
-  connectGate();
-  connectBnb();
+  connectSpot();
+  connectPerp();
 }
 
 ['qty','entrySpot','entryShort','funding','fundingPaid'].forEach(id => {
   $(id).addEventListener('input', render);
 });
 
-connectGate();
-connectBnb();
+connectSpot();
+connectPerp();
 </script>
 </body>
 </html>
