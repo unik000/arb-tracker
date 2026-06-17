@@ -11,6 +11,7 @@
   .upd { font-size: 12px; color: #64748b; font-weight: 400; margin-left: 4px; }
   .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
   .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 16px; }
   .card { background: #1e2130; border: 1px solid #2d3348; border-radius: 12px; padding: 18px 20px; }
   .section-title { font-size: 11px; font-weight: 500; color: #64748b; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px; }
   .price-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #2d3348; }
@@ -66,7 +67,7 @@
 
 <div class="status-row">
   <div class="src"><span class="src-dot" id="dotSpot"></span> Gate спот</div>
-  <div class="src"><span class="src-dot" id="dotPerp"></span> Gate фьюч</div>
+  <div class="src"><span class="src-dot" id="dotPerp"></span> Binance фьюч</div>
 </div>
 
 <div class="grid2">
@@ -87,7 +88,7 @@
       <span class="price-val" id="priceSpot">—</span>
     </div>
     <div class="price-row">
-      <span class="price-label">Gate фьюч <span class="badge badge-perp">PERP</span></span>
+      <span class="price-label">Binance фьюч <span class="badge badge-perp">PERP</span></span>
       <span class="price-val" id="pricePerp">—</span>
     </div>
     <div class="price-row">
@@ -166,7 +167,6 @@ const $ = id => document.getElementById(id);
 let spotPrice = null;
 let perpPrice = null;
 let wsSpot = null;
-let wsPerp = null;
 
 function getInputs() {
   return {
@@ -221,40 +221,7 @@ function render() {
   $('statusDot').className = 'dot live';
 }
 
-function calcClose() {
-  const entrySpot = parseFloat($('entrySpot').value) || 166.82;
-  const qty = parseFloat($('qty').value) || 13.84;
-  const closeSpotAmt = parseFloat($('closeSpotAmt').value);
-  const closeFutPnl = parseFloat($('closeFutPnl').value);
-  const closeFunding = parseFloat($('closeFunding').value) || 0;
-
-  if (isNaN(closeSpotAmt) || isNaN(closeFutPnl)) {
-    alert('Введи сумму продажи спота и P&L фьюча!');
-    return;
-  }
-
-  // Вложено в спот при входе
-  const invested = entrySpot * qty;
-  // Прибыль со спота = получено - вложено
-  const spotProfit = closeSpotAmt - invested;
-  // Итог
-  const net = spotProfit + closeFutPnl - closeFunding;
-
-  const box = $('resultBox');
-  box.className = 'result-box ' + (net >= 0 ? 'pos-bg' : 'neg-bg');
-
-  $('resNet').textContent = (net >= 0 ? '+' : '') + '$' + net.toFixed(2);
-  $('resNet').className = 'result-value ' + (net >= 0 ? 'pos' : 'neg');
-
-  $('resBreakdown').innerHTML =
-    '<div class="breakdown-item"><div class="breakdown-label">Спот P&L</div><div class="breakdown-val ' + (spotProfit >= 0 ? 'pos' : 'neg') + '">' + (spotProfit >= 0 ? '+' : '') + '$' + spotProfit.toFixed(2) + '</div></div>' +
-    '<div class="breakdown-item"><div class="breakdown-label">Фьюч P&L</div><div class="breakdown-val ' + (closeFutPnl >= 0 ? 'pos' : 'neg') + '">' + (closeFutPnl >= 0 ? '+' : '') + '$' + closeFutPnl.toFixed(2) + '</div></div>' +
-    '<div class="breakdown-item"><div class="breakdown-label">Фандинг</div><div class="breakdown-val neg">-$' + closeFunding.toFixed(2) + '</div></div>';
-
-  $('resHint').textContent = 'Вложено в спот: $' + invested.toFixed(2);
-  $('closeResult').style.display = 'block';
-}
-
+// Gate спот — WebSocket
 function connectSpot() {
   if (wsSpot) wsSpot.close();
   wsSpot = new WebSocket('wss://api.gateio.ws/ws/v4/');
@@ -280,39 +247,57 @@ function connectSpot() {
   wsSpot.onclose = () => { $('dotSpot').className = 'src-dot'; setTimeout(connectSpot, 3000); };
 }
 
-function connectPerp() {
-  if (wsPerp) wsPerp.close();
-  wsPerp = new WebSocket('wss://fx-ws.gateio.ws/v4/ws/usdt');
-  wsPerp.onopen = () => {
-    wsPerp.send(JSON.stringify({
-      time: Math.floor(Date.now()/1000),
-      channel: 'futures.tickers',
-      event: 'subscribe',
-      payload: ['SPCX_USDT']
-    }));
-  };
-  wsPerp.onmessage = e => {
-    try {
-      const d = JSON.parse(e.data);
-      if (d.result && Array.isArray(d.result)) {
-        const t = d.result.find(x => x.contract === 'SPCX_USDT');
-        if (t && t.last) { perpPrice = parseFloat(t.last); $('dotPerp').className = 'src-dot ok'; render(); }
-      } else if (d.result && d.result.last) {
-        perpPrice = parseFloat(d.result.last);
-        $('dotPerp').className = 'src-dot ok';
-        render();
-      }
-    } catch(err) {}
-  };
-  wsPerp.onerror = () => { $('dotPerp').className = 'src-dot'; };
-  wsPerp.onclose = () => { $('dotPerp').className = 'src-dot'; setTimeout(connectPerp, 3000); };
+// Binance фьюч — REST каждые 3 сек
+async function fetchBinancePerp() {
+  try {
+    const res = await fetch('https://fapi.binance.com/fapi/v1/ticker/price?symbol=SPCXUSDT');
+    const d = await res.json();
+    if (d.price) {
+      perpPrice = parseFloat(d.price);
+      $('dotPerp').className = 'src-dot ok';
+      render();
+    }
+  } catch(e) {
+    $('dotPerp').className = 'src-dot';
+  }
+}
+
+function calcClose() {
+  const entrySpot = parseFloat($('entrySpot').value) || 166.82;
+  const qty = parseFloat($('qty').value) || 13.84;
+  const closeSpotAmt = parseFloat($('closeSpotAmt').value);
+  const closeFutPnl = parseFloat($('closeFutPnl').value);
+  const closeFunding = parseFloat($('closeFunding').value) || 0;
+
+  if (isNaN(closeSpotAmt) || isNaN(closeFutPnl)) {
+    alert('Введи сумму продажи спота и P&L фьюча!');
+    return;
+  }
+
+  const invested = entrySpot * qty;
+  const spotProfit = closeSpotAmt - invested;
+  const net = spotProfit + closeFutPnl - closeFunding;
+
+  const box = $('resultBox');
+  box.className = 'result-box ' + (net >= 0 ? 'pos-bg' : 'neg-bg');
+
+  $('resNet').textContent = (net >= 0 ? '+' : '') + '$' + net.toFixed(2);
+  $('resNet').className = 'result-value ' + (net >= 0 ? 'pos' : 'neg');
+
+  $('resBreakdown').innerHTML =
+    '<div class="breakdown-item"><div class="breakdown-label">Спот P&L</div><div class="breakdown-val ' + (spotProfit >= 0 ? 'pos' : 'neg') + '">' + (spotProfit >= 0 ? '+' : '') + '$' + spotProfit.toFixed(2) + '</div></div>' +
+    '<div class="breakdown-item"><div class="breakdown-label">Фьюч P&L</div><div class="breakdown-val ' + (closeFutPnl >= 0 ? 'pos' : 'neg') + '">' + (closeFutPnl >= 0 ? '+' : '') + '$' + closeFutPnl.toFixed(2) + '</div></div>' +
+    '<div class="breakdown-item"><div class="breakdown-label">Фандинг</div><div class="breakdown-val neg">-$' + closeFunding.toFixed(2) + '</div></div>';
+
+  $('resHint').textContent = 'Вложено в спот: $' + invested.toFixed(2);
+  $('closeResult').style.display = 'block';
 }
 
 function reconnect() {
   $('statusDot').className = 'dot';
   $('updTime').textContent = 'переподключение...';
   connectSpot();
-  connectPerp();
+  fetchBinancePerp();
 }
 
 ['qty','entrySpot','entryShort','funding','fundingPaid'].forEach(id => {
@@ -320,7 +305,8 @@ function reconnect() {
 });
 
 connectSpot();
-connectPerp();
+fetchBinancePerp();
+setInterval(fetchBinancePerp, 3000);
 </script>
 </body>
 </html>
